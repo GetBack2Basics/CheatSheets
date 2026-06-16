@@ -160,3 +160,21 @@ sudo systemctl restart systemd-resolved
 sudo tc qdisc add dev eth0 root netem delay 100ms
 sudo tc qdisc del dev eth0 root
 ```
+
+On Linux, the standard way to enforce system-wide defaults for Chromium-based browsers is by modifying the browser's global environmental wrapper script.Step 1: Update the Global Wrapper FlagsChrome reads a default configuration wrapper script located in /opt. Open the wrapper configuration using your preferred terminal text editor (like nano or vim) with sudo:bashsudo nano /opt/google/chrome/google-chrome
+Use code with caution.Scroll all the way to the very bottom of that file. You will see a line that looks exactly like this:bashexec -a "$0" "$HERE/chrome" "$@"
+Use code with caution.Modify that exact line to append your resource-saving flags right before the trailing arguments. Change it to:bashexec -a "$0" "$HERE/chrome" --enable-low-end-device-mode --js-flags="--max-old-space-size=2048" --process-per-site "$@"
+Use code with caution.Save and exit the editor (in nano, press Ctrl+O, Enter, then Ctrl+X).Step 2: Enforce a Global Systemd Hard RAM Cap (Optional but Recommended)Because you have root access, you can ensure that Chrome never crashes your entire OS if a massive spatial script or AI tool leaks memory. You can configure systemd to automatically sandbox the Chrome application binary slice.Run this command to create a global systemd override for the desktop display manager:bashsudo mkdir -p /etc/systemd/system/user-.slice.d/
+Use code with caution.Now, create a global resource configuration file:bashsudo nano /etc/systemd/system/user-.slice.d/chrome-limit.conf
+Use code with caution.Paste the following lines into it. This ensures that any graphical application launched by any user is restricted from completely exhausting the system's 16GB swap and RAM layout:ini[Slice]
+MemoryHigh=12G
+MemoryMax=14G
+Use code with caution.Save and close the file, then tell systemd to reload its configuration:bashsudo systemctl daemon-reload
+Use code with caution.
+Step 1: Force System-Wide Environment FlagsCreate a dedicated configurations file that Chrome checks on every boot. Run this command with root privileges:bashsudo nano /etc/default/google-chrome
+Use code with caution.(If the file is blank, that is completely normal).Paste the exact configuration line below into the file:bashexport CHROMIUM_USER_FLAGS="--enable-low-end-device-mode --js-flags=\"--max-old-space-size=2048\" --process-per-site"
+Use code with caution.Save and close the file (Ctrl+O, Enter, then Ctrl+X if using nano).Step 2: The Direct Binary Symlink Patch (If Step 1 fails)If your specific Linux distribution's package script ignores the /etc/default file, you can directly intercept the launcher line inside the global application configuration.Open the main root desktop environment file:bashsudo nano /usr/share/applications/google-chrome.desktop
+Use code with caution.Press Ctrl+W to search, type Exec=, and look at the line. Update all three instances of the Exec= lines inside this file to append the flags right after the executable.Change them from this:iniExec=/usr/bin/google-chrome-stable %U
+Use code with caution.To this:iniExec=/usr/bin/google-chrome-stable --enable-low-end-device-mode --js-flags="--max-old-space-size=2048" --process-per-site %U
+Use code with caution.Repeat this for the other two Exec= lines further down the file (the ones under Actions=new-window and Actions=new-private-window). Save and close.Step 3: Clear the Cache and RestartForce your desktop manager to drop its old configurations cache and load your new strict resource rules:bashsudo update-desktop-database /usr/share/applications/
+Use code with caution.VerificationFully close all open Chrome windows (Ctrl+Q), re-open Chrome from your application launcher, and head back to chrome://version.You should now explicitly see --enable-low-end-device-mode, --js-flags="--max-old-space-size=2048", and --process-per-site printed alongside your --ozone-platform=wayland string.
