@@ -1,12 +1,12 @@
-# Linux Local LLM Quick Start (Hermes + Qwen)
+# Linux Local LLM Quick Start (Hermes + Gemma 3 12B)
 
 ## Summary
 
-Install Ollama on Ubuntu, verify the local service, run Hermes and Qwen, and point OpenAI-compatible tools at your local Ollama endpoint.
+Install Ollama on Ubuntu, verify the local service, pull the Gemma 3 12B model, and point Hermes or other OpenAI-compatible tools at your local Ollama endpoint.
 
 ## Discussion
 
-This guide prioritizes reliability on fresh Ubuntu installs where DNS or IPv6 routing can cause installation errors.
+This guide prioritizes reliability on fresh Ubuntu installs where DNS or IPv6 routing can cause installation errors. Hermes is the agentic agent, while Gemma 3 12B is the local model served by Ollama.
 
 ## Requirements
 
@@ -34,21 +34,15 @@ ollama serve
 
 If you see `address already in use`, the service is already running.
 
-### Step 3: Pull and run Hermes
+### Step 3: Pull the Gemma model
 
-The run command pulls the model if it is not present and then starts an interactive chat.
-
-```bash
-ollama run hermes3
-```
-
-### Step 4: Pull and run Qwen
+Pull the model used locally by Hermes:
 
 ```bash
-ollama run qwen2.5
+ollama pull gemma3:12b
 ```
 
-### Step 5: Local endpoint for Hermes and OpenAI-compatible tools
+### Step 4: Local endpoint for Hermes and OpenAI-compatible tools
 
 Use the local Ollama OpenAI-compatible endpoint:
 
@@ -74,16 +68,15 @@ export OLLAMA_HOST=http://localhost:11434
 
 ## Verification
 
-- `ollama run hermes3` launches an interactive prompt without errors.
-- `ollama run qwen2.5` launches an interactive prompt without errors.
+- `ollama pull gemma3:12b` completes without errors.
 - OpenAI-compatible tools can connect when pointed at `http://localhost:11434/v1`.
-- Type `/bye` to exit model chat and return to the shell.
+- `ollama list` shows `gemma3:12b` as available locally.
 
 ## Troubleshooting
 
 - **Could not resolve host during install:** Retry the install with the IPv4 command shown above.
 - **`ollama serve` fails unexpectedly:** Check service state and logs with your init system.
-- **Model name not found:** Run `ollama list` and verify available tags.
+- **Model name not found:** Run `ollama list` and verify that `gemma3:12b` is available.
 - **Client cannot connect to local Ollama:** Confirm Ollama is running and that the client is using `http://localhost:11434/v1` for OpenAI-compatible access.
 
 ## Quick Command Reference
@@ -95,9 +88,8 @@ curl -4 -fsSL https://ollama.com/install.sh | sh
 # Start service (if not already running)
 ollama serve
 
-# Run models
-ollama run hermes3
-ollama run qwen2.5
+# Pull model used by Hermes
+ollama pull gemma3:12b
 
 # Optional environment variables for local integrations
 export OPENAI_BASE_URL=http://localhost:11434/v1
