@@ -26,7 +26,7 @@ curl -4 -fsSL https://ollama.com/install.sh | sh
 
 ### Step 2: Verify Ollama service
 
-In a separate terminal, start the service if needed.
+In a separate terminal, you can start the service if needed but it should be started.
 
 ```bash
 ollama serve
@@ -76,3 +76,39 @@ ollama serve
 ollama run hermes3
 ollama run qwen2.5
 ```
+
+## Setup Hermes to use it
+Hermes model
+
+# Issues
+
+free -h
+
+Add a Swap File
+Adding a swap file gives the kernel breathing room to page out inactive memory, allowing the model to load successfully without triggering the OOM killer.
+
+Since you are already logged in as root, run these commands to create and enable an 8GB swap file:
+
+Bash
+# 1. Create the swap file
+fallocate -l 8G /swapfile
+
+# 2. Set the correct permissions (crucial for security)
+chmod 600 /swapfile
+
+# 3. Format the file as swap space
+mkswap /swapfile
+
+# 4. Enable the swap space
+swapon /swapfile
+
+# 5. Make it permanent (so it survives a reboot)
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+Run a smaller model parameter size: By default, ollama run qwen2.5 usually pulls the 7B parameter model, which requires around 5GB+ of RAM/VRAM to run comfortably. You can explicitly request a smaller, lighter version of the model:
+
+Bash
+ollama run qwen2.5:3b    # Requires ~3GB RAM
+ollama run qwen2.5:1.5b  # Requires ~2GB RAM
+ollama run qwen2.5:0.5b  # Requires <1GB RAM
+
+
