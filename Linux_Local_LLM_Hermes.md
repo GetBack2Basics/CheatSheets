@@ -2,17 +2,18 @@
 
 ## Summary
 
-Install Ollama on Ubuntu, verify the local service, pull the Gemma model, and point Hermes or other OpenAI-compatible tools at your local Ollama endpoint.
+Install Ollama on Ubuntu, verify the local service, create a custom local model with a larger context window, and point Hermes or other OpenAI-compatible tools at your local Ollama endpoint.
 
 ## Discussion
 
-This guide prioritizes reliability on fresh Ubuntu installs where DNS or IPv6 routing can cause installation errors. Hermes is the agentic agent, while Gemma 3 12B is the local model served by Ollama.
+This guide prioritizes reliability on fresh Ubuntu installs where DNS or IPv6 routing can cause installation errors. Hermes is the agentic agent, while the local Ollama model is customized from `orieg/gemma3-tools:12b-ft` with a larger context window.
 
 ## Requirements
 
 - Ubuntu system with sudo access
 - Internet connectivity
 - Terminal access
+- Ollama installed locally
 
 ## Workflow
 
@@ -34,17 +35,33 @@ ollama serve
 
 If you see `address already in use`, the service is already running.
 
-### Step 3: Pull the Gemma model
+### Step 3: Create a custom model with a larger context window
 
-Pull the model used locally by Hermes:
+Create a file named `Modelfile` with the following contents:
 
-```bash
-ollama pull gemma3:12b
+```text
+FROM orieg/gemma3-tools:12b-ft
+PARAMETER num_ctx 65536
 ```
 
-### Step 4: Local endpoint for Hermes and OpenAI-compatible tools
+Then build the custom model locally:
 
-Use the local Ollama OpenAI-compatible endpoint in 'Hermes model':
+```bash
+ollama create gemma3-tools-hermes -f Modelfile
+```
+
+### Step 4: Update Hermes to use the custom model
+
+Update your Hermes configuration to use the new model name:
+
+```yaml
+model:
+  name: "gemma3-tools-hermes"
+```
+
+### Step 5: Local endpoint for Hermes and OpenAI-compatible tools
+
+Use the local Ollama OpenAI-compatible endpoint in your Hermes or client configuration:
 
 ```text
 http://localhost:11434/v1
@@ -57,12 +74,15 @@ http://localhost:11434
 ```
 
 ## Verification
-- `ollama list` shows `gemma3:12b` as available locally.
+
+- `ollama list` shows `gemma3-tools-hermes` as available locally.
+- Hermes is configured to reference `gemma3-tools-hermes`.
+- The local endpoint responds at `http://localhost:11434/v1`.
 
 ## Troubleshooting
 
 - **Could not resolve host during install:** Retry the install with the IPv4 command shown above.
 - **`ollama serve` fails unexpectedly:** Check service state and logs with your init system.
-- **Model name not found:** Run `ollama list` and verify that `gemma3:12b` is available or you want to try and updated version.
+- **Model name not found:** Run `ollama list` and verify that `gemma3-tools-hermes` was created successfully.
 - **Client cannot connect to local Ollama:** Confirm Ollama is running and that the client is using `http://localhost:11434/v1` for OpenAI-compatible access.
-
+- **Modelfile errors:** Confirm the file is named exactly `Modelfile` with no extension and that the `FROM` line matches the source model.
