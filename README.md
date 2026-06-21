@@ -13,8 +13,8 @@ This repository contains practical Linux/networking/server setup notes and quick
 | `Linux_Hermes_Setup_Performance_Improvement.md` | Set up Hermes on Linux and enforce per-folder profile isolation with `direnv`. | Current and useful. |
 | `Linux_Local_LLM_Hermes.md` | Quick start for Ollama with local model setup and endpoint usage. | Current and useful. |
 | `Linux_Network_Machine_Improvement.md` | Ubuntu networking reliability and DNS/latency troubleshooting checklist. | Current and useful. |
-| `Mail_Server_RoundCube.md` | Roundcube/Postfix/Dovecot mail server notes and troubleshooting. | Needs cleanup (contains terminal editor artifacts and truncated content). |
-| `cloudflare_tunnel_setup.md` | Cloudflare Tunnel setup and Docker integration notes. | Needs cleanup (contains terminal editor artifacts and truncated content). |
+| `Mail_Server_RoundCube.md` | Postfix/Dovecot/Roundcube setup, verification, and troubleshooting checklist. | Normalized to consistent guide format. |
+| `cloudflare_tunnel_setup.md` | Cloudflare Tunnel setup with Docker run/compose examples and troubleshooting. | Normalized to consistent guide format. |
 
 ## Recommended Reading Order
 
@@ -28,12 +28,10 @@ This repository contains practical Linux/networking/server setup notes and quick
 
 - Some commands modify system configuration (`/etc/sysctl.conf`, NetworkManager settings, resolver behavior, mail service configs). Review before execution.
 - IPv4-only and IPv6-disable style steps are best treated as diagnostics/workarounds unless you intentionally want permanent policy changes.
-- Two guides currently appear to include copied terminal editor output and may need normalization:
-  - `Mail_Server_RoundCube.md`
-  - `cloudflare_tunnel_setup.md`
+- Replace placeholder credentials/domains before running commands in server guides.
 
 ## Suggested Next Improvements
 
-- Normalize `Mail_Server_RoundCube.md` and `cloudflare_tunnel_setup.md` into clean markdown sections (Summary, Requirements, Workflow, Verification, Troubleshooting).
 - Add rollback commands for every config-changing step.
 - Add a quick symptom-to-guide troubleshooting matrix at the top of this README.
+- Add a lightweight "tested on" matrix (Ubuntu version, Docker version, and last validation date) for each guide.

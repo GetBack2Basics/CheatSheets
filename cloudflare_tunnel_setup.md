@@ -1,52 +1,111 @@
-  GNU nano 7.2                                cloudflare-tunnel-guide.md                                          
-# Cloudflare Tunnel Configuration Guide
+# Cloudflare Tunnel Setup (Docker)
 
-This guide explains how to create, configure, and maintain Cloudflare Tunnels (Cloud-Managed Tunnels) for routing>
+## Summary
 
----
+Create and run a Cloudflare Tunnel (`cloudflared`) to expose a local service securely through Cloudflare without directly opening inbound ports on your host.
 
-## Overview
+## Discussion
 
-Cloudflare Tunnels (`cloudflared`) allow you to securely expose a local container to the public internet without >
+Cloudflare Tunnel is useful when you want secure public access to an internal app (for example, a dashboard or API container) while keeping your origin private behind Cloudflare.
 
+## Requirements
+
+- Cloudflare account with Zero Trust access
+- Domain managed in Cloudflare
+- Docker and Docker Compose (or docker run) on the host
+- Local service/container already running and reachable on the Docker network
+
+## Workflow
+
+### Part 1: Create the tunnel in Cloudflare Zero Trust
+
+1. Go to Cloudflare Zero Trust dashboard.
+2. Navigate to **Networks → Tunnels**.
+3. Click **Create a tunnel**.
+4. Choose **Cloudflare Tunnel (connector)**.
+5. Name the tunnel and save.
+6. In **Install and run a connector**, select **Docker**.
+7. Copy the generated token (this is your `TUNNEL_TOKEN`).
+
+### Part 2: Configure local environment
+
+Set token in `.env` (no quotes):
+
+```env
+TUNNEL_TOKEN=<your-full-token-here>
 ```
-[ Internet ] ---> [ Cloudflare Edge ] ===( HTTP/2 Tunnel )===> [ cloudflared container ] ---> [ app container ]
+
+### Part 3: Run cloudflared container
+
+Example with Docker run:
+
+```bash
+docker run -d \
+  --name cloudflared \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest \
+  tunnel --no-autoupdate run --token "$TUNNEL_TOKEN"
 ```
 
----
+Example with Docker Compose service:
 
-## Part 1: Creating a Tunnel in Cloudflare Zero Trust
+```yaml
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+```
 
-1. **Access the Zero Trust Dashboard:**
-   * Go to the [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/).
-   * Select your account.
+### Part 4: Configure public hostname routing
 
-2. **Create the Tunnel:**
-   * Navigate to **Networks** -> **Tunnels**.
-   * Click **Create a tunnel**.
-   * Choose **Cloudflare Tunnel (connector)** and click **Next**.
-   * Enter a descriptive name (e.g., `transport-crafter`) and click **Save tunnel**.
+In the tunnel configuration, add a public hostname mapping to your local service, for example:
 
-3. **Retrieve the Tunnel Token:**
-   * On the **Install and run a connector** page, select the **Docker** tab.
-   * Copy the full token string (starts with `ey...`, ~184 characters).
-   * **This is your `TUNNEL_TOKEN`.**
+- Hostname: `app.example.com`
+- Service: `http://app:8080` (or your actual internal service URL)
 
----
+### Part 5: Validate tunnel health
 
-## Part 2: Local Docker Integration
+```bash
+docker logs -f cloudflared
+```
 
-1. **Configure Environment Variables:**
-   * Open the `.env` file in the project root.
-   * Set the `TUNNEL_TOKEN` variable:
-     ```env
-     TUNNEL_TOKEN=<your-full-token-here>
-     ```
-   * **IMPORTANT:** Do NOT use quotes around the token value. Write it as a raw string:
-     ```env
-     TUNNEL_TOKEN=eyJhIjoi...FeiJ9
-     ```
+You should see successful connector registration and active connection messages.
 
-                                                [ Read 143 lines ]
-^G Help         ^O Write Out    ^W Where Is     ^K Cut          ^T Execute      ^C Location     M-U Undo
-^X Exit         ^R Read File    ^\ Replace      ^U Paste        ^J Justify      ^/ Go To Line   M-E Redo
+## Verification
+
+- Tunnel status appears healthy in Zero Trust dashboard.
+- Public hostname resolves and loads your service.
+- Origin service remains private (no direct public inbound rule required).
+
+## Troubleshooting
+
+### Tunnel does not connect
+
+- Verify `TUNNEL_TOKEN` is exact and unquoted in `.env`.
+- Confirm outbound connectivity from host.
+- Check container logs for auth/token errors.
+
+### Public hostname returns 502/503
+
+- Validate upstream service URL/port in tunnel route.
+- Confirm app container is reachable from cloudflared container/network.
+- Check app logs and container health.
+
+### DNS or hostname issues
+
+- Confirm hostname is attached to the correct tunnel.
+- Confirm domain is active in Cloudflare and DNS has propagated.
+
+### Intermittent disconnects
+
+- Check host resource pressure and network stability.
+- Ensure container restart policy is enabled.
+- Review Cloudflare status/incident feed if issue is widespread.
+
+## Notes and Cautions
+
+- Treat tunnel tokens as secrets; rotate if leaked.
+- Prefer Cloudflare Access policies for app-level authentication.
+- Pin image versions in production instead of always using `latest`.
