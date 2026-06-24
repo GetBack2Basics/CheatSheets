@@ -15,6 +15,20 @@ This repository contains practical Linux/networking/server setup notes and quick
 | `Linux_Network_Machine_Improvement.md` | Ubuntu networking reliability and DNS/latency troubleshooting checklist. | Current and useful. |
 | `Mail_Server_RoundCube.md` | Postfix/Dovecot/Roundcube setup, verification, and troubleshooting checklist. | Normalized to consistent guide format. |
 | `cloudflare_tunnel_setup.md` | Cloudflare Tunnel setup with Docker run/compose examples and troubleshooting. | Normalized to consistent guide format. |
+| `Firebase-Auth-User-Administration-Complete-Setup-Guide.md` | Complete Firebase Auth + user administration lifecycle for Vite + React apps, including approval workflow and admin console operations. | Newly added and ready to use. |
+
+## New Guide Summary: Firebase Auth & User Administration
+
+`Firebase-Auth-User-Administration-Complete-Setup-Guide.md` provides a full implementation playbook for authentication and account lifecycle management in a Vite + React + Firebase stack. It covers:
+
+- Email/password sign-up with email verification
+- Google OAuth using redirect flow
+- Firestore-backed `userAccounts` profile/status model
+- Admin approval/deactivation/reactivation and admin role controls
+- Password reset and in-app password change with re-authentication
+- Login/activity tracking fields and update strategy
+- Bootstrap admin flow for first trusted account
+- Baseline Firestore security rules and production hardening checklist
 
 ## Recommended Reading Order
 
@@ -23,6 +37,7 @@ This repository contains practical Linux/networking/server setup notes and quick
 3. Use `Linux_Hermes_Setup_Performance_Improvement.md` for strict per-project profile isolation.
 4. Use `cloudflare_tunnel_setup.md` when exposing local services through Cloudflare Tunnel.
 5. Use `Mail_Server_RoundCube.md` for self-hosted mail stack setup and troubleshooting.
+6. Use `Firebase-Auth-User-Administration-Complete-Setup-Guide.md` when implementing authentication, authorization, and admin user operations in Firebase.
 
 ## Notes and Cautions
 
