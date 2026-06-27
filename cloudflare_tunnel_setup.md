@@ -167,3 +167,9 @@ Notes and Cautions
 - Pin image versions in production instead of always using latest.
 - When renaming docker-compose services, run docker compose down --remove-orphans before docker compose up -d.
 - Keep cloudflared on the same Docker network as the app service.
+- Service name = subdomain convention: Name your docker-compose service the same as your public subdomain (example: ozlanka.getback2basics.net → service ozlanka → http://ozlanka:3000) to avoid confusion between service name, container name, and hostname.
+- Never use --reload in production containers: Uvicorn --reload spawns a watcher child process and can behave unpredictably in containers with bind mounts; use it only in dedicated dev setups with proper signal handling.
+- Avoid hardcoded 127.0.0.1 for inter-container calls: Use compose DNS/service names (example: http://backend:8000) and ensure code reads env vars such as BACKEND_INTERNAL_URL instead of hardcoding loopback addresses.
+- Package name vs import name must match: psycopg[binary] installs as import psycopg, while import psycopg2 requires psycopg2-binary.
+- Rebuilds can silently change dependencies: Pin exact package versions and verify critical imports after rebuilds.
+- Add healthchecks to detect broken services early: Crash-looping containers can persist unnoticed for hours without compose health checks.
