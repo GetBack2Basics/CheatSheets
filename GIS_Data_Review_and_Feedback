@@ -7,7 +7,7 @@ Run each phase with specific paths to your data. Ensure everything for a phase i
 
 ## Report Generation Dependency
 - HTML and DOCX report scripts live in a separate reusable git project:  
-  https://github.com/GetBack2Basics/Spatial_Offline_Report_Crafter
+  https://github.com/GetBack2Basics/Spatial_Report_Crafter.git and https://github.com/GetBack2Basics/Spatial_Document-Crafter
 - Use this report project after creating the review GPKG to produce client-ready outputs.
 - Required review GPKG layers:
   - `*_new_review`
@@ -24,11 +24,7 @@ Run each phase with specific paths to your data. Ensure everything for a phase i
   - `Src_Date`
   - `Src_Value`
   - `Comments`
-- Call report scripts directly from their installed/cloned paths:
-  - `scripts/build_html_report.py` — produces `Reconciliation_Review.html` + map assets
-  - `scripts/create_extract_docx.py` — produces a native DOCX summary extract
-- For HTML script usage details, see `scripts/build_html_report.md` in that same project.
-
+- Call report scripts directly from their installed/cloned paths: see md files in project for details.
 ## GIS Data Workflow Phases
 
 ### Phase 1: Discover
@@ -37,7 +33,7 @@ Run each phase with specific paths to your data. Ensure everything for a phase i
 - Read sample records and check geometry columns.
 - Validate geometry types match expected assets (points/lines/polygons).
 - If endpoint access is required: probe a sample first; if it fails, inform the user and stop before bulk operations.
-- Summarize findings: count, formats, geometry status, and data-quality red flags.
+- Summarise findings: count, formats, geometry status, and data-quality red flags.
 - **Ask user:** agree on source inventory and domain scope before proceeding.
 
 ### Phase 2: Scope & Design
