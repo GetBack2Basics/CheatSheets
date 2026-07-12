@@ -1,16 +1,39 @@
-    Purpose: This AI agent template is meant for workflows where the client has some spatial data and needs to ingest multiple files from field staff in a semi-unstructured format. Run each phase with specific paths to your data. Make sure everything for a phase is complete and then proceed with the next phase prompts.
-
-GIS DATA WORKFLOW PHASES
+  #Spatial Offline Report Crafter
+        
+##Purpose:
+This AI agent template is meant for workflows where the client has some spatial data and needs to ingest multiple files from
+    field staff in a semi-unstructured format. Run each phase with
+    specific paths to your data. Make sure everything for a phase is
+    complete and then proceed with the next phase prompts.
+    
+    Report generation dependency:
+    - HTML DOCX report scripts live in a separate reusable git project:
+    https://github.com/GetBack2Basics/Spatial_Offline_Report_Crafter
+    - Use this report project after creating the review GPKG to produce
+    client-ready outputs.
+    - Required review GPKG layers: *_new_review, *_drift_review,
+    *_displacement_vector
+    - Recommended columns: Asset_ID or asset_id, Drift_m, Risk_Level,
+    Review_PotentialChange, Review_Status, Src_CSV, Src_Type, Src_Date,
+    Src_Value, Comments
+    - Call the report scripts directly from their installed/cloned paths:
+      - scripts/build_html_report.py — produces
+    Reconciliation_Review.html + map assets
+      - scripts/create_extract_docx.py — produces a native DOCX summary extract
+    - For HTML script usage details, see scripts/build_html_report.md in
+    that same project
+    
+    GIS DATA WORKFLOW PHASES
     
     PHASE 1: DISCOVER
     - Inspect source folder structure
     - Identify domains and file formats
     - Read sample records, check geometry columns
-    - Validate geometry types match expected assets (points/lines/polygons)
+    - Validate geometry types match expected assets
+    (points/lines/polygons)
     - If endpoint access required: probe sample first; if fail, inform
     user and stop before bulk operations
-    - Summarize findings: count, formats, geometry status, data quality
-    red flags
+    - Summarize findings: count, formats, geometry status, data quality red flags
     - ASK USER: agree source inventory and domain scope before proceeding
     
     PHASE 2: SCOPE & DESIGN
@@ -18,12 +41,13 @@ GIS DATA WORKFLOW PHASES
     - Define drift threshold, attribute comparison columns, status flags
     - Agree on review GPKG layer names and symbology categories
     - Agree on output paths and target write-back locations
-    - Confirm no source/original files will be modified unless explicitly requested
+    - Confirm no source/original files will be modified unless
+    explicitly requested
     - ASK USER: approve scope before writing any scripts
     
     PHASE 3: PREPARE & VALIDATE
     - Write all scripts needed for the workflow (ingest, clean, match,
-    build outputs)
+    build outputs into review GPKG)
     - STOP and face user review of scripts and paths
     - Do not run pipelines yet
     - Fix small issues flagged by user inline
@@ -32,20 +56,19 @@ GIS DATA WORKFLOW PHASES
     PHASE 4: EXECUTE
     - Run ingestion and cleaning scripts
     - Generate review GPKG with classified features and flags
-    - Build reports and maps
-    - If any step returns zero features or unexpected nulls, halt and
-    report
+    - Build reports and maps using the report project scripts against
+    the review GPKG
+    - If any step returns zero features or unexpected nulls, halt and report
     - ASK USER after each major step: review output counts and samples
     before continuing
     
     PHASE 5: REVIEW & ITERATE
     - Present findings: new assets, drift counts, flagged records,
-    displacement vectors using 
+    displacement vectors using generated HTML and DOCX reports
     - Highlight data quality issues found
     - Make small fixes if user requests
     - Regenerate outputs if logic changed
-    - ASK USER: confirm analysis output before write-back or final
-    report
+    - ASK USER: confirm analysis output before write-back or final report
     
     PHASE 6: COMMIT & DOCUMENT
     - Run write-back dry-run and show diff
@@ -57,11 +80,13 @@ GIS DATA WORKFLOW PHASES
     GENERAL RULES (all phases)
     - Use safe field expressions; avoid non-existent functions
     - Match field lengths to source or trim explicitly
-    - Never modify files outside designated working directory without
-    permission
+    - Never modify files outside designated working directory without permission
     - Probe external endpoints before depending on them
-    - Verify geometry column names from actual source; do not assume
-    defaults
+    - Verify geometry column names from actual source; do not assume defaults
     - Keep outputs separate from inputs until user approves write-back
     - Ask only when blocked or decision required; otherwise execute, fix
     small things, then report
+    - For HTML reports, keep native folium basemap controls; only
+    post-process for metadata links and custom WMS form
+    - For DOCX reports, use native document format with structured
+    tables and summary sections
