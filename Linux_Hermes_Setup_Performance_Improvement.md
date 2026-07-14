@@ -107,6 +107,25 @@ chmod +x setup_hermes_profiles.sh
 - Guidance source:
   Use `@safishamsi/graphify` as quick-start guidance for project setup patterns, while preserving strict per-folder Hermes isolation.
 
+### Part 5: Harden global profile (no general memory)
+
+The per-folder profiles from Part 3 give each project isolated memory. To guarantee NO
+general memory is ever accumulated, disable memory in the global/default profile so an
+accidental launch from the workspace root (outside any folder profile) cannot build up
+shared context.
+
+```bash
+hermes profile use default
+hermes config set memory.memory_enabled false
+```
+
+This only silences the default profile — per-folder profiles keep their own local memory
+intact. Verify the setting from inside a project folder vs. outside:
+
+```bash
+hermes config get memory.memory_enabled
+```
+
 ## Verification
 
 - Each subfolder contains an allowed direnv policy and profile-specific environment.
