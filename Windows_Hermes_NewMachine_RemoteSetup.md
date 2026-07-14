@@ -7,8 +7,12 @@ Operating mode for Hermes on this work: **Caveman** (see `Linux_Hermes_Setup_Per
 "Operating Procedure Override"). Terse. No forensics. Fail fast & ask. Batch. No mock data.
 
 When the user asks Hermes to "set up a new Windows machine," read THIS file, then ask the
-user only for the specifics: remote **host**, remote **user**, and where the SSH key lives
-(local path). Do not guess host/user.
+user only for the specifics: remote **host**, remote **user**, where the SSH key lives
+(local path), and the **shortcut name** they want for the PowerShell jump function (e.g.
+`orc`). Do not guess host/user/shortcut.
+
+**RULE: never `git commit` or `git push` without explicitly asking the user first.** Draft
+the change, state what will be committed/pushed, and wait for confirmation.
 
 ## Part 1: Prereqs probe (run first)
 
@@ -85,9 +89,9 @@ Remote `hermes` is NOT on PATH in non-interactive ssh (no .bashrc). Use a login 
 User terminal is **PowerShell**, NOT bash. `.bashrc` aliases do nothing there.
 
 ```powershell
-# create profile dir if missing, add function
+# create profile dir if missing, add function (use the SHORTCUT name the user chose, e.g. orc)
 if (!(Test-Path (Split-Path $PROFILE))) { New-Item -ItemType Directory -Force -Path (Split-Path $PROFILE) | Out-Null }
-Add-Content -Path $PROFILE -Value 'function orc { ssh -i $HOME\.ssh\id_rsa USER@HOST }'
+Add-Content -Path $PROFILE -Value 'function SHORTCUT { ssh -i $HOME\.ssh\id_rsa USER@HOST }'
 ```
 
 PowerShell blocks profile scripts by default (ExecutionPolicy). Enable once:
