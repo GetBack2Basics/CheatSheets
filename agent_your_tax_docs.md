@@ -1,4 +1,4 @@
-# Agent Your Tax Docs — a non-specific cheat sheet
+# Agent Your Tax Docs
 
 See https://notebooklm.google.com/notebook/d8559832-1faa-4eff-9d61-691e6bd13271/artifact/5657ea07-96d9-4ae7-83f0-1894dde9a79e?utm_source=nlm_web_share&utm_medium=google_oo&utm_campaign=art_share_1&utm_content=&utm_smc=nlm_web_share_google_oo_art_share_1_
 and
