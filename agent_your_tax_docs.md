@@ -7,6 +7,7 @@ https://notebooklm.google.com/notebook/d8559832-1faa-4eff-9d61-691e6bd13271/arti
 How to point a free/local AI agent at your own tax backlog without giving up control
 (or your privacy). You delegate the *consolidation*, not the *responsibility* — the
 agent drafts, you own the sign-off.
+You save money and time by handing your tax consultant what they want. You save on not having to do the drudge work as well!
 
 ## 1. What you're actually doing
 You're hiring a very fast, very cheap analyst that works from your source documents.
@@ -46,7 +47,4 @@ Hand these to the agent as a short brief + historical defaults; let it ask when 
 ## 6. The win
 Have the agent build the whole ledger first, then ask you only the judgment calls a
 human must own. And have it write down how it did the work — so next year starts
-faster and more accurate. It isn't a chatbot you talk to. It's a colleague you delegate to.
-
----
-*Non-specific by design. Drop this into NotebookLM to generate an explainer if you like.*
+faster and more accurately. It isn't a chatbot you talk to. It's a colleague you delegate to.
