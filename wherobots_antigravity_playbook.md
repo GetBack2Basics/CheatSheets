@@ -29,12 +29,12 @@ Use the `WherobotsJob` class from the SDK to package your local ingestion script
 from wherobots import WherobotsJob
 
 # Declare local file dependencies (e.g. JSON configuration files)
-config_dep = WherobotsJob.add_file_dependency("config/macquarie.json")
+config_dep = WherobotsJob.add_file_dependency("config/settings.json")
 
 # Initialize and submit the job
 job = WherobotsJob(
-    script="src/Ingestion/macquarie_spatial_ingest.py",
-    name="macquarie-spatial-etl",
+    script="src/etl_pipeline.py",
+    name="my-spatial-etl",
     runtime="tiny",
     api_key="<YOUR_WHEROBOTS_API_KEY>",
     dependencies=[config_dep],
@@ -56,14 +56,14 @@ conn = connect(api_key="<YOUR_WHEROBOTS_API_KEY>")
 cursor = conn.cursor()
 
 # Retrieve catalog tables
-cursor.execute("SHOW TABLES IN org_catalog.fgsdb")
+cursor.execute("SHOW TABLES IN org_catalog.my_database")
 df_tables = cursor.fetchall()  # Returns a Pandas DataFrame!
 print(df_tables)
 
 # Execute spatial queries
 cursor.execute("""
-    SELECT precinct_key, ST_Area(net_developable_geom) / 1e4 AS area_ha 
-    FROM org_catalog.fgsdb.macquarie_net_developable_zones
+    SELECT study_area_id, ST_Area(net_developable_geom) / 1e4 AS area_ha 
+    FROM org_catalog.my_database.net_developable_zones
 """)
 df_results = cursor.fetchall()
 print(df_results)
@@ -82,24 +82,24 @@ print(df_results)
 - **Better approach**: Track the projection of your database tables and query them directly in their native CRS.
 
 ### Anti-pattern 3: Buffering and unioning unfiltered global/state-wide networks
-- **Why this fails**: Trying to run buffers or spatial unions (`ST_Union_Aggr`) on a full statewide layer (e.g., the entire NSW railway network) on a `tiny` or `small` Wherobots runtime will cause immediate JVM Out-of-Memory (`OOM`) errors.
-- **Better approach**: Join the spatial network with your precinct boundary using `ST_Intersects` *before* applying buffers or union operations:
+- **Why this fails**: Trying to run buffers or spatial unions (`ST_Union_Aggr`) on a full statewide layer (e.g., a country-wide railway network) on a `tiny` or `small` Wherobots runtime will cause immediate JVM Out-of-Memory (`OOM`) errors.
+- **Better approach**: Join the spatial network with your study area boundary using `ST_Intersects` *before* applying buffers or union operations:
   ```sql
   SELECT ST_Buffer(g.geometry, 10.0) AS geom 
-  FROM org_catalog.fgsdb.macquarie_rail_network g
-  JOIN precinct_transform p ON ST_Intersects(g.geometry, p.geom)
+  FROM org_catalog.my_database.rail_network g
+  JOIN study_area_transform p ON ST_Intersects(g.geometry, p.geom)
   ```
 
 ### Anti-pattern 4: Running long-running Python DB-API scripts with stdout buffering
 - **Why this fails**: By default, Python buffers stdout when redirected to logs, making the script appear frozen at `"Connecting..."` for several minutes.
 - **Better approach**: Force unbuffered output by running the script with the `-u` flag:
   ```bash
-  python -u runner/view_results.py
+  python -u scripts/view_results.py
   ```
 
 ---
 
 ## Lessons Learned & Best Practices
 - **Aggregate Function Names**: In Apache Sedona SQL, the aggregate union function is **`ST_Union_Aggr`**, not `ST_Union_Aggregate`.
-- **Dynamic Dependency Paths**: When you add a file dependency (like `config/macquarie.json`) to a Wherobots job, Wherobots downloads it to `/opt/wherobots/macquarie.json` in the executor. Make sure your Python scripts check this directory in their candidate config paths.
-- **Tolerating Missing Open Data**: Open-data APIs (like NSW SEED Portal) frequently go offline or change endpoints (e.g., returning HTTP 404). Wrap open data ingestion calls in `try-except` blocks and check table existence using `sedona.catalog.tableExists` to ensure the ETL pipeline degrades gracefully instead of failing entirely.
+- **Dynamic Dependency Paths**: When you add a file dependency (like `config/settings.json`) to a Wherobots job, Wherobots downloads it to `/opt/wherobots/settings.json` in the executor. Make sure your Python scripts check this directory in their candidate config paths.
+- **Tolerating Missing Open Data**: Open-data APIs frequently go offline or change endpoints (e.g., returning HTTP 404). Wrap open data ingestion calls in `try-except` blocks and check table existence using `sedona.catalog.tableExists` to ensure the ETL pipeline degrades gracefully instead of failing entirely.
