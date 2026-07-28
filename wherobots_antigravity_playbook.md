@@ -99,6 +99,107 @@ df_results = cursor.fetchall()
 print(df_results)
 ```
 
+### Step 4: Interactive Jupyter Notebooks (Visual Mapping)
+You can open an interactive Jupyter notebook (`.ipynb`) in your editor to query and plot your spatial layers visually. For example, add the following to your file:
+* Set up a code cell to initialize the Sedona Context:
+  ```python
+  from sedona.spark import *
+  spark = SedonaContext.create(SedonaContext.builder().getOrCreate())
+  ```
+* Run query commands to visualize dataframes:
+  ```python
+  df = spark.read.table("org_catalog.my_database.net_developable_zones")
+  df.show()
+  ```
+
+### Step 5: Wherobots Cloud UI Explorer
+If you prefer an out-of-the-box UI interface, you can explore your data directly in the cloud:
+1. Log in to [Wherobots Cloud](https://wherobots.cloud/).
+2. Navigate to the **Query Editor** or start a Jupyter Notebook.
+3. Query the Iceberg tables directly using Spatial SQL:
+   ```sql
+   SELECT * FROM org_catalog.my_database.net_developable_zones LIMIT 10;
+   ```
+
+---
+
+## Data Verification & Testing
+
+Verify that your remote ETL outputs are populated and valid by executing assertion checks against the Havasu/Iceberg tables:
+
+```python
+import sys
+from wherobots.db import connect
+
+def verify_etl_run(api_key: str):
+    conn = connect(api_key=api_key)
+    cursor = conn.cursor()
+    
+    # 1. Verify table counts are non-zero
+    print("Testing table row counts...")
+    cursor.execute("SELECT COUNT(*) AS row_count FROM org_catalog.my_database.net_developable_zones")
+    df = cursor.fetchall()
+    row_count = df.iloc[0]['row_count']
+    
+    assert row_count > 0, "ETL Verification Failure: Net developable zones table is empty!"
+    print(f"Success: Net developable zones table has {row_count} rows.")
+    
+    # 2. Check geometry validity (e.g. area is positive)
+    cursor.execute("""
+        SELECT study_area_id, ST_Area(net_developable_geom) AS area 
+        FROM org_catalog.my_database.net_developable_zones
+    """)
+    df_area = cursor.fetchall()
+    for index, row in df_area.iterrows():
+        assert row['area'] > 0, f"ETL Verification Failure: study area {row['study_area_id']} has 0 or negative area!"
+        print(f"Success: Area check passed for {row['study_area_id']} ({row['area'] / 1e4:.2f} ha).")
+
+if __name__ == "__main__":
+    verify_etl_run("<YOUR_WHEROBOTS_API_KEY>")
+```
+
+---
+
+## Checking ETL Status Directly on Wherobots Cloud
+
+### Option 1: Programmatically checking runs via Python SDK
+You can introspect job execution pipelines or retrieve status and logs of past runs directly:
+```python
+from wherobots import WherobotsJob
+
+# List recent organization runs
+runs_page = WherobotsJob.list_runs(api_key="<YOUR_WHEROBOTS_API_KEY>", size=10)
+for run in runs_page.items:
+    print(f"Run Name: {run.name} | ID: {run.run_id} | Status: {run.status.value}")
+
+# Get status of a specific running job
+job = WherobotsJob.get_run("<RUN_ID>", api_key="<YOUR_WHEROBOTS_API_KEY>")
+status = job.get_status()
+print(f"Current Job Status: {status.status}")
+
+# Fetch logs for a specific run
+logs = job.get_logs()
+print("Run logs:")
+print(logs)
+```
+
+### Option 2: Checking run status via REST API (cURL)
+You can directly query the Wherobots Runs REST API from your terminal to monitor jobs without the Python environment.
+
+**Get Run Metadata:**
+```bash
+curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>?region=us-west-2' \
+  -H 'accept: application/json' \
+  -H 'X-API-Key: <YOUR_WHEROBOTS_API_KEY>'
+```
+
+**Get Run Logs:**
+```bash
+curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>/logs?region=us-west-2' \
+  -H 'accept: application/json' \
+  -H 'X-API-Key: <YOUR_WHEROBOTS_API_KEY>'
+```
+
 ---
 
 ## What not to do (Anti-patterns)
@@ -131,11 +232,28 @@ print(df_results)
   JOIN study_area_transform p ON ST_Intersects(g.geometry, p.geom)
   ```
 
+### Anti-pattern 6: Iterating over cursor.fetchall() as list of row tuples
+- **Why this fails**: The Wherobots DB-API cursor `fetchall()` returns a **Pandas DataFrame** by default. Iterating directly over this dataframe using `for row in df` actually iterates over the column headers (strings), not the row tuples. This will cause downstream coordinate extraction to crash.
+- **Better approach**: Iterate over the rows using `df.iterrows()` or `df.itertuples(index=False)` and access column names directly:
+  ```python
+  df_results = cursor.fetchall()
+  for index, row in df_results.iterrows():
+      geom_wkt = row["geometry"]
+      name = row["town_name"]
+  ```
+
+### Anti-pattern 7: Relying on session views across multiple connection cursor executes
+- **Why this fails**: The Wherobots Spatial SQL Thrift server is stateless and routes consecutive cursor calls across different backend cluster nodes. If you create a temporary view in one execute step (e.g., `CREATE TEMP VIEW my_view...`) and query it in the next cursor step, the session state is often lost, resulting in table-not-found errors.
+- **Better approach**: Consolidate your query pipeline into a single, unified Common Table Expression (CTE) statement and execute it in one call.
+
 ---
 
 ## Lessons Learned & Best Practices
 
 - **Aggregate Function Names**: In Apache Sedona SQL, the aggregate union function is **`ST_Union_Aggr`**, not `ST_Union_Aggregate`.
+- **JTS TopologyExceptions on Unioning**: Running `ST_Union_Aggr` on detailed, overlapping spatial datasets with invalid geometries will crash with JTS `TopologyException` (`unable to assign free hole to a shell`). Ensure you run **`ST_MakeValid`** on geometries before aggregate unioning, or bypass the union entirely by querying features individually with a `LIMIT` or `ST_Simplify` and rendering them as separate Leaflet/Folium layers.
+- **Explicit SRID Binding**: Geometries uploaded without spatial reference metadata (SRID 0) must be bound using **`ST_SetSRID(geometry, <SRID>)`** first before transforming (e.g. `ST_Transform(ST_SetSRID(geometry, 7856), 'EPSG:4326')`), otherwise coordinates will distort or fail transformation.
+- **Dynamic Table Schema Checking**: Always assume schemas vary across environments. Don't hardcode standard primary keys like `objectid` or `status` columns. Fetch a single row first (`SELECT * FROM table LIMIT 1`) or handle column resolution errors gracefully.
+- **WebSocket Session Heartbeats**: When executing code programmatically on the Jupyter WebSocket kernel, send a heartbeat ping every 30 seconds to prevent the proxy gateway from closing the WebSocket socket during long-running Spark jobs.
 - **Dynamic Dependency Paths**: When you add a file dependency (like `config/settings.json`) to a Wherobots job, Wherobots downloads it to `/opt/wherobots/settings.json` in the executor. Make sure your Python scripts check this directory in their candidate config paths.
 - **Tolerating Missing Open Data**: Open-data APIs frequently go offline or change endpoints (e.g., returning HTTP 404). Wrap open data ingestion calls in `try-except` blocks and check table existence using `sedona.catalog.tableExists` to ensure the ETL pipeline degrades gracefully instead of failing entirely.
-- **WebSocket Session Heartbeats**: When executing code programmatically on the Jupyter WebSocket kernel, send a heartbeat ping every 30 seconds to prevent the proxy gateway from closing the WebSocket socket during long-running Spark jobs.
