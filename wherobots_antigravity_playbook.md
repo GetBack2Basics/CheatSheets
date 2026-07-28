@@ -254,6 +254,10 @@ curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>/logs?region=us-west-2
 - **Why this fails**: Statically defining feature counts or format descriptions in HTML templates leads to stale/mocked labels and incorrect totals when the underlying data is updated.
 - **Better approach**: Maintain a list of dataset metadata objects in your python builder script. Loop through the config, query the database row counts dynamically, and construct the HTML table rows programmatically before injecting them into the template.
 
+### Anti-pattern 10: Multiline Template String Injection Without Proper Escape Characters
+*   **Why this fails**: In Python, multi-line string templates (like HTML templates) containing raw escape characters (such as `\n` inside a string literal) are parsed by the Python compiler as literal newlines. When injected into a JavaScript section of the template, this results in a syntax error (`Invalid or unexpected token`) which crashes Leaflet map rendering.
+*   **Better approach**: Use double-escaped sequences (e.g., `\\n`) in the Python string template to ensure the target output retains the raw escape code, or format string segments using template literals in JS.
+
 ---
 
 ## Lessons Learned & Best Practices
@@ -266,3 +270,4 @@ curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>/logs?region=us-west-2
 - **Dynamic Dependency Paths**: When you add a file dependency (like `config/settings.json`) to a Wherobots job, Wherobots downloads it to `/opt/wherobots/settings.json` in the executor. Make sure your Python scripts check this directory in their candidate config paths.
 - **Tolerating Missing Open Data**: Open-data APIs frequently go offline or change endpoints (e.g., returning HTTP 404). Wrap open data ingestion calls in `try-except` blocks and check table existence using `sedona.catalog.tableExists` to ensure the ETL pipeline degrades gracefully instead of failing entirely.
 - **Timezone-Aware Generation Timestamps**: Always use timezone-aware timestamps (e.g. `datetime.datetime.now().astimezone()`) and format them to include the timezone name (`%Z`). Naive timestamps on cloud servers default to UTC, causing users to see compilation times that appear stale.
+- **Raw vs. High-Resolution Spatial Constraint Discrepancies**: Siting scorecards should distinguish between raw proximity calculations (which yield optimistic, raw scores) and high-resolution spatial constraints (which subtract physical easements, riparian buffers, and hazard zones). Displaying both scores in comparison tables clearly demonstrates the value of detailed spatial engineering.
