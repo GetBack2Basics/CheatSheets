@@ -246,6 +246,14 @@ curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>/logs?region=us-west-2
 - **Why this fails**: The Wherobots Spatial SQL Thrift server is stateless and routes consecutive cursor calls across different backend cluster nodes. If you create a temporary view in one execute step (e.g., `CREATE TEMP VIEW my_view...`) and query it in the next cursor step, the session state is often lost, resulting in table-not-found errors.
 - **Better approach**: Consolidate your query pipeline into a single, unified Common Table Expression (CTE) statement and execute it in one call.
 
+### Anti-pattern 8: Hardcoding baseline benchmarking datasets inside local report compilers
+- **Why this fails**: Defining baseline candidates (like Victoria, Queensland, or WA benchmarking arrays) in multiple local scripts results in score discrepancies (e.g. showing different ratings in leaderboards vs region comparison charts) and makes updates extremely error-prone.
+- **Better approach**: Build and union the scorecard once. Either write the complete dataset directly to a permanent database table (using Havasu/Iceberg) or compile them in a single self-contained spatial SQL query (using CTEs to union the local candidates with baseline benchmarks) so that all maps, statistics, and text in the report query from a single source of truth.
+
+### Anti-pattern 9: Hardcoding data source volumes and metadata in UI templates
+- **Why this fails**: Statically defining feature counts or format descriptions in HTML templates leads to stale/mocked labels and incorrect totals when the underlying data is updated.
+- **Better approach**: Maintain a list of dataset metadata objects in your python builder script. Loop through the config, query the database row counts dynamically, and construct the HTML table rows programmatically before injecting them into the template.
+
 ---
 
 ## Lessons Learned & Best Practices
@@ -257,3 +265,4 @@ curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>/logs?region=us-west-2
 - **WebSocket Session Heartbeats**: When executing code programmatically on the Jupyter WebSocket kernel, send a heartbeat ping every 30 seconds to prevent the proxy gateway from closing the WebSocket socket during long-running Spark jobs.
 - **Dynamic Dependency Paths**: When you add a file dependency (like `config/settings.json`) to a Wherobots job, Wherobots downloads it to `/opt/wherobots/settings.json` in the executor. Make sure your Python scripts check this directory in their candidate config paths.
 - **Tolerating Missing Open Data**: Open-data APIs frequently go offline or change endpoints (e.g., returning HTTP 404). Wrap open data ingestion calls in `try-except` blocks and check table existence using `sedona.catalog.tableExists` to ensure the ETL pipeline degrades gracefully instead of failing entirely.
+- **Timezone-Aware Generation Timestamps**: Always use timezone-aware timestamps (e.g. `datetime.datetime.now().astimezone()`) and format them to include the timezone name (`%Z`). Naive timestamps on cloud servers default to UTC, causing users to see compilation times that appear stale.
