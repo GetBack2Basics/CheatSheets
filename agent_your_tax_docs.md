@@ -29,6 +29,9 @@ economics. The scarce skill becomes: set up access, write a clear brief, check t
 - Loan schedules + payout quotes for any financed equipment.
 - Anything about property use changing (home office → rental), since the
   cost-split rules change the moment the use changes.
+- Prior-year consolidated ledgers when they exist. A verified draft workbook is
+  usually more reliable than re-parsing prior-year bank PDFs, which are often
+  incomplete or formatted differently year-to-year.
 
 ## 4. Judgment calls only YOU can make
 Hand these to the agent as a short brief + historical defaults; let it ask when ambiguous.
@@ -36,6 +39,10 @@ Hand these to the agent as a short brief + historical defaults; let it ask when 
 - Personal vs business classification on tangled rows.
 - Cost base of any disposed asset.
 - Which financial year each transaction belongs to.
+- Occupancy timeline for any property that changed from owner-occupied to rental,
+  because the split rules change on the rental start date, not the financial year start.
+- Primary point of contact for the tax engagement, especially when spouses are joint
+  owners or co-signatories.
 
 ## 5. What to always re-check (where banks and bookkeepers drift)
 - Bank debits vs the source loan docs — they often disagree. Trust the source document.
@@ -43,8 +50,38 @@ Hand these to the agent as a short brief + historical defaults; let it ask when 
 - Asset disposals buried as routine transfers — rebuild the cost base from the finance docs.
 - Expenses living only in email, never in the bank.
 - Estimates you couldn't source a statement for (FX, interest) — keep them flagged, not buried.
+- **PDF text extraction:** many bank PDFs are scanned images, not text layers. If
+  `pdfminer` / `PyMuPDF` text extraction returns empty or garbled output, fall back
+  to OCR or vision-based inspection before assuming the document is blank.
+- **Header drift across years:** precompute/report scripts should map by header name,
+  not fixed column index. When a new column is inserted or removed, an index-based
+  reader silently returns wrong totals instead of failing loudly.
+- **Category name drift:** old ledgers use informal categories like
+  `Other Personal Expense` or `Purchases`. Map them explicitly to the current schema;
+  do not assume a prior year's category names match the current year.
 
-## 6. The win
+## 6. Agent ops lessons from actual tax packs
+- **Prefer normalization over rebuild** when a verified prior-year ledger exists.
+  Re-parsing prior-year bank PDFs often yields 0 transactions because formats change
+  or files are incomplete in the new working folder.
+- **Internal transfers:** detect by description text (`TFR`, `TRANSFER TO/FROM`,
+  `MOBILE`) rather than amount-pairing. Amount-pairing found only 2 pairs in
+  FY25-26 testing; text matching found hundreds.
+- **Windows save-path trap:** `os.path.join(BASE, "..", "Sagacity", "file.xlsx")`
+  can raise `OSError: [Errno 22] Invalid argument` even when standalone
+  `openpyxl.Workbook().save(path)` succeeds on the same path. Prefer absolute
+  hardcoded paths or write-to-temp-then-copy.
+- **Old P&L formulas are not portable.** Do not paste spreadsheet formulas from an
+  old workbook into a new schema. Rebuild P&L totals from normalized transaction rows
+  so the numbers tie back to the Transactions sheet.
+- **Bundle income statements by payer and year.** ATO/pre-fill income statements
+  often carry suffixes like `2526` that are not authoritative. Inspect the PDF body
+  for payer name, TFN, period dates, and amounts before filing.
+- **Ask once, record forever.** Occupation, co-signatory/spouse details, business address, and
+  prior-year lodgement status should be captured in an `Explanatory_Notes` worksheet
+  so next year starts faster.
+
+## 7. The win
 Have the agent build the whole ledger first, then ask you only the judgment calls a
 human must own. And have it write down how it did the work — so next year starts
 faster and more accurately. It isn't a chatbot you talk to. It's a colleague you delegate to.
