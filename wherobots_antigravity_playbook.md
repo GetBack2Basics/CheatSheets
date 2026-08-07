@@ -204,6 +204,8 @@ curl -X GET 'https://api.cloud.wherobots.com/runs/<RUN_ID>/logs?region=us-west-2
 
 ## What not to do (Anti-patterns)
 
+Interactive runtimes stay up while a kernel is active, so setting a shorter idle timeout when launching a notebook and shutting down sessions when you're done will keep costs tied to actual use. You can see more about how to manage costs in our docs here: https://docs.wherobots.com/get-started/organization-management/managing-costs
+
 ### Anti-pattern 1: Dynamic Coordinate Transformation in Join Predicates
 *   **Why this fails**: Putting `ST_Transform(geometry, 'EPSG:XXXX', 'EPSG:YYYY')` inside the `ON ST_Intersects(...)` join predicate transforms the geometry for every single record comparison. This completely disables Spark/Sedona's spatial index, leading to slow nested loop joins that hang.
 *   **Better approach**: Keep both tables in their native CRS (e.g. `EPSG:4326` or `EPSG:7856`), or transform the smaller table's geometry *once* inside a CTE before the join.
