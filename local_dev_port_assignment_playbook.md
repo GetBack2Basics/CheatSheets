@@ -1,18 +1,22 @@
 # Local Dev Port Assignment Playbook
 
-> **Problem:** When running multiple Vite/Node projects simultaneously, hardcoded ports collide (e.g. two projects both want `:3000`). This playbook documents the `findFreePort` pattern and conventions used across GetBack2Basics projects to avoid clashes.
+> **Problem:** When running multiple Vite/Node projects simultaneously, hardcoded ports collide (e.g. two projects both want `:3000`). This playbook documents the `findFreePort` pattern and conventions for keeping projects conflict-free.
 
 ---
 
-## Port Registry (GetBack2Basics Projects)
+## Port Registry
 
-| Project | Dev Port (start) | Backend/API Port |
-|---|---|---|
-| SpatialCourse_Crafter | 3000 (auto) | 8080 |
-| LivePersonaCrafter | **3005** (auto) | 3005 |
-| *(add new projects here)* | | |
+Maintain a simple table in your team wiki or repo README listing each project and its assigned port range. Spacing projects **5+ ports apart** leaves room for fallback increments.
 
-> **Convention:** Each project sets its own `start` port in `vite.config`, spaced at least **5 ports apart**. The `findFreePort` helper probes upwards, so a project starting at 3005 will land on 3005, 3006, 3007 etc. — never clashing with a project starting at 3000.
+```
+| Project       | Dev start port | Backend/API port |
+|---------------|---------------|------------------|
+| project-alpha | 3000          | 8080             |
+| project-beta  | 3005          | 3005             |
+| project-gamma | 3010          | 3010             |
+```
+
+> **Rule of thumb:** when onboarding a new project, claim the next unclaimed block in the registry before writing any config.
 
 ---
 
@@ -41,7 +45,7 @@ function findFreePort(start = 3000) {
   });
 }
 
-// <- change the start port per project (spaced 5+ apart)
+// <- set to this project's registered start port
 const port = await findFreePort(3000);
 
 export default defineConfig({
@@ -93,7 +97,8 @@ function getBackendPort(): number {
   return 3005; // <- match your .env PORT
 }
 
-const devPort = await findFreePort(3005); // <- change start port per project
+// <- set to this project's registered start port
+const devPort = await findFreePort(3005);
 
 export default defineConfig({
   plugins: [react()],
@@ -127,7 +132,7 @@ By the time Vite starts, `findFreePort` has **already confirmed** the port is fr
 
 ## The `.server-port` Pattern (Backend → Frontend handshake)
 
-When your Node/Express server starts, write its resolved port to a `.server-port` file. The Vite config reads this file to know where to proxy `/api` calls.
+When your Node/Express server starts, write its resolved port to a `.server-port` file. The Vite config reads this file to know where to proxy `/api` calls — useful when the backend also uses dynamic port resolution.
 
 ```ts
 // server/index.ts (Node/Express)
@@ -182,14 +187,10 @@ taskkill /PID <PID> /F
 
 ## Quick Start Checklist for a New Project
 
-- [ ] Choose a `start` port **not used by any existing project** (check the registry table above)
-- [ ] Add `findFreePort` to `vite.config.js/ts`, passing your chosen start port
+- [ ] Claim the next available port block in your team's port registry
+- [ ] Add `findFreePort` to `vite.config.js/ts`, passing your registered start port
 - [ ] Set `strictPort: true` in the Vite `server` block
 - [ ] Set `PORT=<your start port>` in `.env`
 - [ ] Have the Node server write `.server-port` on startup (if using backend proxy)
 - [ ] Add `.server-port` to `.gitignore`
-- [ ] Update the Port Registry table in this playbook
-
----
-
-*Last updated: 2026-08-11 — sourced from SpatialCourse_Crafter and LivePersonaCrafter implementations.*
+- [ ] Update the port registry with your new project entry
