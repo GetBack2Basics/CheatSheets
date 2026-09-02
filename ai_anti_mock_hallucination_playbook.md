@@ -2,7 +2,7 @@
 
 **A Practical Playbook for Data Engineers, GIS Developers, and AI Pair Programmers**  
 *Repository Reference:* [GetBack2Basics Playbooks](https://github.com/GetBack2Basics/CheatSheets)  
-*Synthesized from real-world engineering across AURA Siting Crafter (National Spatial Lakehouse) and SplatOlympics (3D Gaussian Splatting / Photogrammetry)*
+*Synthesized from real-world engineering across AURA Siting Crafter (National Data Center Siting) and SplatOlympics (3D Gaussian Splatting / Photogrammetry)* and many internal projects dealing with state and council level data.
 
 ---
 
