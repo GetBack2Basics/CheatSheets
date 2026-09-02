@@ -314,3 +314,24 @@ Interactive runtimes stay up while a kernel is active, so setting a shorter idle
 ### Anti-pattern 12: Ingesting static continental cadastral and infrastructure layers on every run
 - **Why this fails**: Re-fetching 15M+ cadastral lots or 275k rail vectors on every pipeline run wastes bandwidth and Spark compute.
 - **Better approach**: Compute cryptographic ETags / content hashes and only ingest deltas using Iceberg snapshots.
+
+
+### Anti-pattern 13: Assuming Upstream Endpoint Layer Indices & Geometry Types Never Change
+- **Why this fails**: Government GIS REST and WFS services periodically restructure MapServer/FeatureServer sublayer indices (e.g. MapServer/0 pointing to power station points or reference places instead of high-voltage transmission lines or cyclone wind polygons). Treating polygons as points or lines distorts coordinates, causes MapLibre/Leaflet rendering mismatches, or displays 0 records in tables.
+- **Better approach**: Implement automated upstream contract probing (`tests/test_live_endpoints_audit.py`). Query upstream metadata (`?f=json`), assert `metadata.geometryType` strictly matches config contracts (`esriGeometryPolygon` <-> `Polygon`/`fill`, `esriGeometryPoint` <-> `Point`/`circle`, `esriGeometryPolyline` <-> `LineString`/`line`), and verify sample coordinates fall within continental geographic bounds (`EPSG:4326` / `EPSG:7844`).
+
+### Anti-pattern 14: Decoupling Viewport Stream Events from Active Table Docks
+- **Why this fails**: In client-side vector streaming architectures, viewport bounding-box data fetches update map sources, but if the attribute table viewer is not bound to the stream completion lifecycle, opening the table displays an empty "0 records loaded" state.
+- **Better approach**: Implement unified data hydration hooks (`populateTableFromData`) that re-render the attribute table dock both on stream completion and on layer toggle, pulling immediately from in-memory cached GeoJSON payloads.
+
+### Anti-pattern 15: Client-Side UTC Timestamp Conversion Offsetting Local Build Dates
+- **Why this fails**: Calling `new Date().toISOString()` in client JavaScript converts local morning time (e.g. 9:30 AM AEST) to UTC (11:30 PM previous day), causing UI footers and release badges to display yesterday's date code (e.g. `202609022323` instead of `202609030925`).
+- **Better approach**: Standardize build timestamp injection at build time via Python (`datetime.now().strftime('%Y%m%d%H%M')`), and use local date formatters in client scripts.
+
+### Anti-pattern 16: Multi-Tier Config Drift Across Proxy, Manifest, and Frontend
+- **Why this fails**: Adding or modifying a spatial dataset in individual config files without synchronizing the proxy stream dictionary, frontend layer catalog, and manifest creates silent runtime 404s and missing layers.
+- **Better approach**: Enforce a single-source-of-truth CI test (`test_catalog_synchronization.py`) that asserts 100% 1:1 bi-directional registration across all JSON configs, proxy streaming handlers, frontend catalogs, and report attachments.
+
+### Anti-pattern 17: Natural Hazard Modeling Without Statutory Standards & Data Depth Transparency
+- **Why this fails**: Siting complex data infrastructure without peer-reviewed statutory hazard standards (e.g., AS/NZS 1170.2 wind regions, AS 1170.4 seismic PGA, NCC 2022 flood, AGS 2007 landslide) leads to arbitrary risk scores and unverified claims.
+- **Better approach**: Ground all hazard scoring ($S_{\text{hazard}}$) in statutory building codes with explicit binary exclusion gates ($G_{\text{hazard}}$) and index candidates by data depth (e.g. Tier 1 High-Resolution 10/10 layers vs Tier 2 Regional 8/10 layers).
