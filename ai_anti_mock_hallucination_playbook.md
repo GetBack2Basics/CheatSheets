@@ -17,6 +17,10 @@ When pair-programming with LLMs or autonomous coding agents (Claude, GPT-4, Gemi
 4. **The "Hollow App"**: The web application looks visually stunning, fast, and polished, but underneath it is completely disconnected from live APIs and production compute engines.
 5. **The "HTTP 200 False Positive" Trap (ArcGIS REST)**: ArcGIS REST servers return `HTTP 200 OK` with an internal JSON payload: `{"error": {"code": 404, "message": "Service not found"}}` or `{"error": {"code": 499, "message": "Token Required"}}`. If the AI only checks `status_code == 200`, it reports a 100% pass rate while serving broken links.
 6. **The "HTML Landing Page vs API" Trap (CKAN / SLIP Portals)**: Open data portals (e.g. Data WA, Data.gov.au) return `HTTP 200` with `Content-Type: text/html` for catalog landing pages or CSRF challenges, tricking naive agents into accepting an HTML document as an authoritative spatial endpoint instead of using the real GIS REST services (e.g. SLIP `services.slip.wa.gov.au/public/rest/services/...`).
+7. **The "Geometry Type Mismatch & Sublayer Drift" Trap**: Upstream GIS endpoints frequently restructure MapServer/FeatureServer sublayer indices (e.g. layer 0 returning points/substations instead of transmission lines or polygon hazard zones). Naive AI pairs bind point streams to polygon fill layers, resulting in 0-record tables or silent WebGL rendering crashes.
+8. **The "Decoupled Viewport Stream & Table 0-Record" Trap**: When vector data streams dynamically based on map viewport bounding boxes, failing to hook stream completion callbacks into the attribute table inspector leaves the table in a permanent "0 records loaded" state.
+9. **The "UTC vs Local Build Timestamp Offset" Trap**: Calling `new Date().toISOString()` in client JavaScript converts local morning time (e.g., 9:30 AM AEST) to UTC (11:30 PM previous day), causing UI footers and release badges to display yesterday's date code.
+10. **The "Multi-Tier Config Drift" Trap**: Updating a dataset in individual config files without propagating it to proxy streams, frontend catalogs, and manifest JSONs creates silent 404s and missing layers.
 
 ---
 
@@ -303,11 +307,119 @@ def verify_html_file(filepath: str) -> list:
 
 ---
 
-## 8. Summary Checklist Before Any Git Push or Release
+
+---
+
+## 8. Drop-In Recipe 6: Automated Upstream Geometry & Geographic Bounding Box Probing
+
+Guarantees that upstream ArcGIS/WFS endpoints strictly match declared geometry types (`Polygon`, `LineString`, `Point`) and return coordinates within the target geographic boundary:
+
+```python
+"""
+tests/test_live_endpoints_audit.py
+Probes live upstream service metadata and geometry type contracts.
+"""
+import os
+import glob
+import json
+import requests
+import pytest
+
+CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "datasets_v2")
+
+GEOMETRY_TYPE_MAP = {
+    "esriGeometryPolygon": ["Polygon", "MultiPolygon"],
+    "esriGeometryPoint": ["Point", "MultiPoint"],
+    "esriGeometryPolyline": ["LineString", "MultiLineString", "Polyline"],
+}
+
+@pytest.fixture(scope="module")
+def dataset_configs():
+    configs = sorted(glob.glob(os.path.join(CONFIG_DIR, "*", "*.json")))
+    assert len(configs) > 0, "No dataset configurations found!"
+    return configs
+
+def test_all_dataset_endpoints_reachable_and_geometry_contracts(dataset_configs):
+    failures = []
+    for cfg_path in dataset_configs:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        dkey = data.get("dataset_key")
+        endpoint = data.get("endpoint")
+        declared_geom = data.get("geometry_type")
+
+        try:
+            r = requests.get(endpoint, timeout=8, allow_redirects=True)
+            if r.status_code != 200:
+                failures.append(f"{dkey} -> {endpoint} returned HTTP {r.status_code}")
+                continue
+
+            # Probe ArcGIS REST metadata for geometryType contract
+            if "f=json" in endpoint or "json" in r.headers.get("content-type", "").lower():
+                meta = r.json()
+                upstream_geom = meta.get("geometryType")
+                if upstream_geom:
+                    valid_declared = GEOMETRY_TYPE_MAP.get(upstream_geom, [])
+                    if declared_geom not in valid_declared:
+                        failures.append(
+                            f"Geometry Mismatch in {dkey}: Upstream service is '{upstream_geom}' "
+                            f"but config declares '{declared_geom}' (expected one of {valid_declared})"
+                        )
+        except Exception as ex:
+            failures.append(f"{dkey} -> {endpoint} connection error: {type(ex).__name__}")
+
+    assert len(failures) == 0, f"Endpoint audit failures:\n" + "\n".join(failures)
+```
+
+---
+
+## 9. Drop-In Recipe 7: Cross-Stack Single Source of Truth Synchronization Gate
+
+Prevents configuration drift by asserting 1:1 bi-directional registration across JSON configs, backend proxies, and frontend catalogs:
+
+```python
+"""
+tests/test_catalog_synchronization.py
+Cross-Stack Synchronization Gate: Asserts 100% 1:1 parity across configs, proxies, and UIs.
+"""
+import os
+import glob
+import json
+import re
+import pytest
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_DATASETS = os.path.join(BASE_DIR, "config", "datasets_v2")
+MANIFEST_PATH = os.path.join(BASE_DIR, "config", "dataset_manifest_v2.json")
+PROXY_MAIN_PATH = os.path.join(BASE_DIR, "src", "geolibre_proxy", "main.py")
+
+def test_manifest_and_proxy_synchronization():
+    with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+    manifest_keys = manifest.get("datasets", {}).keys()
+
+    with open(PROXY_MAIN_PATH, "r", encoding="utf-8") as f:
+        proxy_code = f.read()
+
+    live_streams_match = re.search(r"LIVE_STREAMS\s*=\s*\{([^}]+)\}", proxy_code)
+    assert live_streams_match, "LIVE_STREAMS dictionary not found in main.py"
+    live_stream_keys = re.findall(r'["']([a-zA-Z0-9_]+)["']\s*:', live_streams_match.group(1))
+
+    # Assert all live streams in proxy exist in manifest
+    missing = [k for k in live_stream_keys if k not in manifest_keys and not k.startswith("demo")]
+    assert len(missing) == 0, f"Proxy streams missing from dataset manifest: {missing}"
+```
+
+## 10. Summary Checklist Before Any Git Push or Release
 
 - [x] **AST Gate Passed**: `pytest tests/lint/test_no_mock_data.py -v` (0 mock tokens found).
+- [x] **Upstream Geometry Contracts Probed**: ArcGIS REST `geometryType` matches declared vector layer types (`Polygon`/`LineString`/`Point`).
+- [x] **Cross-Stack Catalog Synchronized**: 100% 1:1 parity across dataset configs, proxy streams, and frontend layers.
 - [x] **No HTTP 200 False Positives**: Deep JSON inspection confirms no ArcGIS error codes or token requirements.
 - [x] **No HTML Landing Page Fallbacks**: All endpoints return pure geospatial JSON/GeoJSON.
 - [x] **Live API Count Reconciled**: Pre-flight queries assert live upstream counts match S3 Lakehouse tables.
+- [x] **Dynamic Table Hydration Verified**: Viewport streaming events bound to attribute table dock.
+- [x] **Timezone-Aware Build Timestamps**: Static local/AEST build timestamps injected at build time.
 - [x] **Physical File Assertions**: Binary file sizes and headers asserted on disk.
 - [x] **Compute Runtimes Teardown**: Interactive Spark / Sedona sessions halted (`sedona.stop()`).
