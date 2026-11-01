@@ -2,7 +2,83 @@
 
 **A Practical Playbook for Data Engineers, GIS Developers, and AI Pair Programmers**  
 *Repository Reference:* [GetBack2Basics Playbooks](https://github.com/GetBack2Basics/CheatSheets)  
-*Synthesized from real-world engineering across AURA Siting Crafter (National Data Center Siting) and SplatOlympics (3D Gaussian Splatting / Photogrammetry)* and many internal projects dealing with state and council level data.
+*Synthesized from real-world engineering across AURA Siting Crafter (National Data Center Siting) and SplatOlympics (3D Gaussian Splatting / Photogrammetry)* NSW Public Transport Crafter (GTFS / Opal / GCS lakehouse), and many internal projects dealing with state and council level data.
+
+---
+
+## 0. Start Here: The AI Intake Interview (Mandatory Before Any Work)
+
+**This playbook is generic; your project is not.** Before writing or changing any code, the AI must interview the user about *their* platform, plan and requirements, then record the answers and use them to decide which traps, recipes and gates below actually apply. Skipping this step is itself a failure mode (Trap #25): the AI silently assumes a stack, a storage location and a risk tolerance, and the user finds out after data has moved, been overwritten or been deleted.
+
+### 0.1 Rules for the interview
+
+1. **Discover before asking.** First read what already exists: `AGENTS.md` / `GEMINI.md` / `CLAUDE.md` / `README`, `.env.example`, config and manifest files, `requirements.txt` / `package.json`, CI files, and the existing folder layout. Only ask about what you cannot determine, and say what you inferred so the user can correct it ("I see a GCS bucket `x` and DuckDB; I'm assuming the cloud is the source of truth - correct?").
+2. **Ask platform-specific questions, not a generic form.** Pick the question blocks below that match the detected stack (storage, data format, GIS/REST, web front end, ML/3D, etc.). Skip blocks that don't apply.
+3. **Offer options with a recommended default**, ask in small batches (3-6 questions), and use the agent's question tool if it has one. Never ask a yes/no question when two concrete alternatives exist - name them.
+4. **Ask again when the plan changes** (new data store, new destructive step, new consumer of an artifact). The interview is a loop, not a ceremony.
+5. **Write the answers down** in the project's agent-memory file (see 0.4) so every later session starts from the same invariants instead of re-guessing.
+6. **State the consequences you are about to cause** before any irreversible step (delete, overwrite, force-push, bucket write) and wait for an explicit yes.
+
+### 0.2 Question bank (pick the blocks that match the platform)
+
+**A. Platform & source of truth (always ask)**
+- Where must data *live and be processed* - local disk, a cloud bucket (GCS / S3 / Azure Blob), a warehouse (BigQuery / Snowflake), or a mix? Is local allowed as a *cache*, a *working directory*, or *not at all*?
+- Is that an invariant (never violate) or a preference (violate if blocked)? What should happen if the cloud is unreachable - fail, or fall back to local?
+- Which environment am I running against - dev, staging, production? Is the bucket/table I am about to write to production?
+- Which credentials/identity will I use, and am I allowed to use network access / elevated permissions for this task?
+
+**B. Data & classification (any dataset that has types, modes or statuses)**
+- What is the *authoritative* field for the entity's type/category (e.g. GTFS `route_type`, a land-use code, a CKAN resource format) - and who owns it?
+- What does "active / current / valid" mean for this data - a status flag, a calendar window, a last-updated date, or something derived? Are historic / closed / planned entities present in the feed and should they appear?
+- Are names or identifiers unique, or can they collide across agencies/jurisdictions (e.g. the same route number in two operators)? What is the composite key?
+- Which fields are undocumented codes whose meaning I must verify against a known example?
+
+**C. Plan & scope**
+- What is the end deliverable (a published artifact, a UI behaviour, a report) and what is *out of scope*?
+- Is there a staged plan or deadline? What may I regenerate, and what must I never regenerate?
+- Which downstream consumers read the artifacts I'll change (server, front end, tests, deploy scripts, other repos)? Is anything consuming a *local copy*?
+
+**D. Safety, destructive actions & recovery**
+- Is there versioning / backup on the bucket or database? If not, may I create a backup prefix/snapshot first?
+- May I delete local files, old objects or caches? Which are protected?
+- Do you want a dry run (`--no-upload`, `--check`) and a diff before anything is published?
+
+**E. Testing & acceptance**
+- What does "done" mean - which tests, which published artifact, which sample entities must behave correctly (give me 2-3 known-good and 2-3 known-bad examples, e.g. "this station is historic and must NOT appear")?
+- Should tests read the *published* artifact or a fixture? Are there tests asserting things no generator produces?
+
+**F. Platform-specific add-ons (ask only if relevant)**
+- *Cloud object storage:* bucket name, region, public vs signed access, CORS, cache-control, object versioning, lifecycle rules.
+- *Query engine (DuckDB / Spark / BigQuery):* read remote Parquet directly or stage it? Is silent fallback to local views acceptable (default: no)?
+- *GTFS / transit:* which feeds, calendar validity window, are `calendar_dates` exceptions loaded, which agencies share short names, how are modes derived?
+- *GIS REST (ArcGIS / WFS / CKAN):* is `HTTP 200` + JSON `error` possible, expected `geometryType`, expected CRS and bounding box, token requirements.
+- *Web front end:* is it served locally, from the bucket, or both? Does it need CORS or a proxy? Which data URLs does it fetch at runtime?
+- *ML / 3D / photogrammetry:* expected runtime and artifact sizes (so a 300 ms "success" is recognisable as fake), which GPU/compute is available.
+
+### 0.3 How the answers drive the rest of this playbook
+
+| If the user says... | Then the AI must... |
+|---|---|
+| "Cloud is the single source of truth" | Apply Recipe 9 (source-of-truth probe + fail-closed engine); forbid silent local fallback (Trap #19); run Recipe 10 before deleting any local copy. |
+| "Dataset has types / statuses" | Apply Recipe 8 (classification + liveness gate); forbid name-keyword classification (Trap #17) and "exists = active" (Trap #18). |
+| "Production bucket / DB" | Dry run first, backup first, diff after, and read back the published object (Trap #21). |
+| "Other things consume this artifact" | Run the consumer inventory in Recipe 10 and update every reader before changing or deleting it (Trap #22). |
+| "No versioning" | Ask to snapshot to a backup prefix before overwrite; say plainly if a step is unrecoverable. |
+| "Tests must pass" | Point tests at the published artifact and run the orphan-assertion check (Trap #23). |
+
+### 0.4 Record the invariants (paste into `AGENTS.md` / `GEMINI.md` / `CLAUDE.md`)
+
+```markdown
+## Project Invariants (from the AI intake interview - update when they change)
+- Source of truth: <gs://bucket/path | table | local>   Local disk is for: <code+docs only | cache | working dir>
+- Environment being written to: <dev | staging | prod>     Fallback if cloud unreachable: <fail | local (opt-in flag)>
+- Authoritative type field(s): <field>                     "Active" means: <rule>
+- Composite identifiers: <e.g. agency_id + route_id>
+- Protected / never delete: <paths, buckets, prefixes>      Backup before overwrite: <yes: prefix | no versioning>
+- Consumers of generated artifacts: <server, UI, tests, deploy scripts>
+- Known-good / known-bad examples for acceptance: <list>
+- Destructive actions require explicit user confirmation: yes
+```
 
 ---
 
@@ -411,6 +487,90 @@ def test_manifest_and_proxy_synchronization():
     assert len(missing) == 0, f"Proxy streams missing from dataset manifest: {missing}"
 ```
 
+## 9.1 Drop-In Recipe 8: Classification + Liveness Gate
+
+Use when entities have a type/mode/category and a notion of "currently active". The test fails if any published node has no active service or a mode that disagrees with the authoritative field.
+
+```python
+# tests/lint/test_node_classification_and_liveness.py  (GTFS example; adapt the join to your schema)
+MODE_BY_ROUTE_TYPE = {2: "train", 106: "train", 401: "metro", 900: "lightrail",
+                      4: "ferry", 204: "coach", 205: "coach"}   # everything else -> "bus"
+
+SERVED_SQL = """
+SELECT s.stop_name, ROUND(s.stop_lat,4) AS lat, ROUND(s.stop_lon,4) AS lon, r.route_type,
+       COUNT(DISTINCT t.trip_id) AS trips
+FROM stops s
+JOIN stop_times st ON st.stop_id = s.stop_id
+JOIN trips t  ON t.trip_id = st.trip_id
+JOIN routes r ON r.route_id = t.route_id
+JOIN calendar c ON c.service_id = t.service_id
+WHERE c.end_date >= strftime(current_date, '%Y%m%d')
+GROUP BY ALL
+"""
+
+def test_every_node_is_served_and_mode_matches_route_type(engine, infrastructure):
+    served = {}
+    for r in engine.execute_query(SERVED_SQL).itertuples():
+        served.setdefault((r.stop_name, r.lat, r.lon), set()).add(MODE_BY_ROUTE_TYPE.get(int(r.route_type), "bus"))
+    for n in infrastructure:
+        key = (n["name"], round(n["lat"], 4), round(n["lon"], 4))
+        assert key in served, f"{n['name']}: no active scheduled service (exists != active)"
+        assert n["mode"] in served[key], f"{n['name']}: mode {n['mode']} not in GTFS modes {served[key]}"
+        # known-bad examples from the intake interview must be absent, e.g. a historic station
+```
+
+Add a **name-keyword lint**: fail the build if classification code branches on `"Station" in name`-style substring tests for a field that has an authoritative source.
+
+## 9.2 Drop-In Recipe 9: Source-of-Truth Probe + Fail-Closed Engine
+
+Use when the user's invariant is "the cloud store is the source of truth."
+
+```python
+# Engine construction: cloud by default, local only by explicit opt-in, never a silent fallback.
+if os.environ.get("ALLOW_LOCAL_LAKE") == "1":
+    logger.warning("ALLOW_LOCAL_LAKE=1: using LOCAL Parquet views (not the cloud lakehouse)")
+    self.fs = None; self._register_local_tables()
+else:
+    self.fs = pafs.GcsFileSystem(anonymous=False)     # raises if credentials are missing - good
+    self._register_statewide_tables()
+self.source = "local" if self.fs is None else f"gs://{self.bucket}/lake/"
+logger.info(f"Lakehouse source: {self.source}")
+
+# Every pipeline script:  engine = get_lake_engine()  # raises if engine.fs is None
+# Every publish:          write to a TemporaryDirectory, upload, let it be deleted (no persistent local mirror)
+# Every SQL string:       reference registered views (routes, trips, ...) - never path-rewrite gs:// -> local
+```
+
+Lint: grep source for `data/lake`, `.replace("gs://`, `LAKE_DIR`, `.to_parquet(` outside an allow-listed staging module; any hit needs a comment explaining why it is not the source of truth. Add a test that fails if the engine reports `source == "local"` in CI.
+
+## 9.3 Drop-In Recipe 10: Safe Destructive-Change Protocol (delete / overwrite / regenerate)
+
+Run this checklist - and show the output to the user - before removing a file, overwriting a published object, or re-running a generator against production.
+
+1. **Consumer inventory**: grep the repo (and sibling repos) for the filename and its directory; list server code, UI fetches, tests, deploy scripts, docs.
+2. **Cloud superset check**: list local vs cloud objects with sizes (and hashes for small files); list keys inside JSON artifacts; prove the cloud copy contains everything the local one does. *Anything local-only must be uploaded (additive) and size-verified first.*
+3. **Backup**: copy every object you will overwrite to `backup/<date>_<reason>/` (cloud-side copy, additive). If the store has no versioning, say so and do this step anyway.
+4. **Dry run**: run the generator with upload disabled and review counts.
+5. **Publish with guards**: assert non-empty and minimum cardinality before upload (Trap #26).
+6. **Read back & compare**: re-download the published object and compare per-artifact counts/keys with the backup; auto-restore from backup on regression.
+7. **Re-point consumers** (server, UI, tests, deploy script) at the cloud copy *before* deleting anything local.
+8. **Ask, then delete**: only after steps 1-7, and only with explicit user confirmation, delete the local copy. Report plainly anything that may be unrecoverable.
+
+```python
+# Skeleton: backup -> run -> compare -> restore on regression
+for name in NAMES:
+    bucket.copy_blob(bucket.blob(f"lake/{name}"), bucket, f"backup/{STAMP}/{name}")
+before = {n: summarize(load(n)) for n in NAMES}
+run_generators()
+for n in NAMES:
+    after = summarize(load(n))
+    if regressed(before[n], after):          # fewer tables/routes/keys than before
+        bucket.copy_blob(bucket.blob(f"backup/{STAMP}/{n}"), bucket, f"lake/{n}")
+        print("RESTORED", n, before[n], "->", after)
+```
+
+---
+
 ## 10. Field Notes: External Web-Service Discovery & Fact-Checking AI Suggestions (Multi-Source Reconciliation Pipelines)
 
 *Added from a real-world engagement: building a repeatable dual AI+Python pipeline to find authoritative external web-service endpoints for ~50 GIS FeatureClasses (scaling to thousands), where an AI assistant repeatedly proposed plausible-looking URLs that had to be fact-checked against a live-verification gate before being trusted. These lessons generalize beyond GIS to any domain where an AI is asked to "find the real URL/endpoint/ID for X".*
@@ -424,6 +584,30 @@ def test_manifest_and_proxy_synchronization():
 15. **The "Homepage Instead of Endpoint" Trap**: Left unconstrained, AI search results default to marketing pages, documentation landing pages, or dataset "detail" pages (all of which are real, live, `HTTP 200`, `text/html`) instead of an actual machine-callable resource. This is subtly different from Trap #6 (HTML fallback for what should be an API) - here, the AI isn't confused about content type, it just didn't look hard enough for the *actual* callable resource one or two clicks deeper (a REST endpoint, an OGC `GetCapabilities` URL, a direct downloadable file, or a catalog API resource ID rather than a catalog UI URL). **Fix**: explicitly ban homepages/doc pages as an acceptable final answer in the prompt/spec, and require one of a small allow-list of concrete patterns (`/MapServer`, `/FeatureServer(/\d+)?`, a WFS/WMS `GetCapabilities` URL, a direct file extension, or a documented catalog API resource identifier).
 16. **The "FTP Path Fabrication" Trap**: The same plausible-fabrication behavior seen in Trap #11 (org IDs) also occurs with FTP directory paths - an AI can propose several `ftp://` paths where only some are real, and a simple "does the hostname resolve" check is not sufficient (a defunct/renamed subdirectory under a perfectly real, resolvable FTP host will look identical to a real one until you actually try to `cwd`/`nlst` it). **Fix**: extend live-verification to actually connect and list/`cwd` into FTP paths (not just HTTP `HEAD`/`GET`), and reject any path that returns a directory-not-found error, even if the host itself is confirmed real.
 
+### 10.1b Failure Modes From a Cloud-Lakehouse Transit Project (NSW Public Transport Crafter)
+
+These came from fixing a map that showed a "Train Station" for a rural fire station on a bus route, then making a multi-script pipeline run only from cloud storage.
+
+17. **The "Name-Keyword Classification" Trap**: A mode/type is inferred from substrings in a free-text name (`"Station" in stop_name` -> train, `"Wharf"`/`"Jetty"` -> ferry). Fire stations, service stations, "Station St" bus stops and "Old Toronto Station" (a *bus* stop) all became "Train Station". **Fix**: classify from the authoritative schema field (for GTFS, the `route_type` of the routes that serve the stop, joined through `stop_times -> trips -> routes`). Keywords may *nominate candidates*; they must never decide the type. Show the mode the data gives ("Bus Stop"), not the mode the name suggests.
+
+18. **The "Exists != Active" Trap**: Official datasets contain historic, closed or unserved entities (a heritage railway station with no trains). Presence in a table was treated as "this runs". Official feeds often have **no status flag at all**. **Fix**: derive liveness explicitly - scheduled `stop_times` inside the calendar validity window, a status field, or a last-seen date - and drop or flag anything that fails. Also count "services today" so zero-service-today is visible.
+
+19. **The "Silent Local Fallback" Trap**: The pipeline claims to run on the cloud lakehouse but rewrites `gs://...` paths to a local mirror (`sql.replace("gs://bucket/lake/", "data/lake/")`), or the query engine falls back to local views when the cloud connection fails (or when an env var is unset - i.e. local is the *default*). Output looks cloud-backed but is computed from a stale local copy. **Fix**: fail closed. Make cloud the default, raise if the engine is not on the target store, make local an explicit opt-in (`ALLOW_LOCAL_LAKE=1`) that logs a warning, and log the data source at startup.
+
+20. **The "Default Positive Status String" Trap**: The UI falls back to reassuring text ("Active Transit Node", "High Feeder Transfer Volume") when no data exists. **Fix**: unknown must read as unknown ("Opal tap data not published at stop level"); only show a positive status computed from data, and say which fields are real.
+
+21. **The "Fixed in Code, Stale in Artifact" Trap**: The generator is fixed but the precomputed JSON the app actually reads is unchanged; merge-on-regenerate also carries stale entries forward. **Fix**: after any logic change, regenerate and *re-inspect the published artifact*, and add a read-time guard where the app consumes it until the artifact is rebuilt.
+
+22. **The "Delete Before Dependency Check" Trap**: A "stale" local file was deleted. It was read by the web server, three tests and a deploy script, was gitignored, and the bucket had no versioning - so it could not be restored, and a scenario that only it contained may have been lost. **Fix**: Recipe 10 - grep every consumer, diff keys against the cloud copy, confirm the cloud copy is a superset, snapshot to a backup prefix first, and ask before deleting.
+
+23. **The "Tests Pass Against the Wrong Copy" Trap**: Tests read the local file and passed; pointed at the published artifact, one asserted a scenario (`dubbo_train_station`) that no generator produces. **Fix**: tests read the published artifact, and every asserted scenario/key must map to a generator (orphan-assertion check).
+
+24. **The "Ambiguous Identifier" Trap**: `route_short_name = '99'` resolved to a different agency's route than intended. **Fix**: key on agency + route id (or the dataset's true composite key), and print what was resolved.
+
+25. **The "Assumed Platform & Plan" Trap**: The AI starts work without asking where data must live, which environment is production, whether backups exist, or who consumes the artifacts, then makes confident choices (overwrite, delete, local fallback). **Fix**: run the intake interview in Section 0 first, record the answers as project invariants, and re-ask whenever the plan changes.
+
+26. **The "Refactor Replaced a Working Result with an Empty One" Trap**: A pipeline script was refactored from local files to a remote engine; a cursor-handling bug made every table fail inside a `try/except` that only printed, and the script **published a manifest with 0 tables** over the good one. A second script, rebuilt with the documented selection rule, silently dropped 88 routes (including required ones) that an earlier manual build had included. **Fix**: assert non-empty / minimum-cardinality before any publish, back up the object first, and compare before/after counts per artifact (keys, rows, columns) - restore automatically if the comparison regresses.
+
 ### 10.2 Process Lessons for Repeatable Multi-Round AI+Python Pipelines
 
 - **Narrow, single-target prompts beat large batch prompts.** Across several rounds of the same task, asking an AI to find one specific, narrowly-scoped thing (e.g. "what is BOM's official product code for X, given this exact product table") produced far more accurate, independently-verifiable answers than asking it to fill in a 50-row batch table in one shot. Batch prompts consistently reintroduced Traps #11-16 at a higher rate.
@@ -432,6 +616,17 @@ def test_manifest_and_proxy_synchronization():
 - **Build an explicit "manual injection" path for genuine human/AI discoveries** that separates *finding* a candidate from *accepting* it into the pipeline's output - i.e. even a fully live-verified, correct discovery should flow through the same downstream confidence-scoring and review-surfacing logic as everything else, rather than being hand-patched directly into a final deliverable. This keeps one auditable source of truth and means the pipeline is safely re-runnable from scratch at any time without losing manually-discovered results.
 - **Fail closed on static/offline ingestion of anything a live source can't safely auto-fetch** (e.g. a file behind a bot-block): validate the *shape* of manually-downloaded data against a minimum-confidence schema check (e.g. "at least N rows must match the expected fixed-width pattern") before accepting it, so that a corrupted or wrong file (such as an HTML block page saved with a `.txt` extension) is rejected loudly rather than silently ingested as if it were real data.
 - **For every unmatched/failed item, always resolve to a concrete "closest checkable" link**, even when the true answer is "no public endpoint exists" (e.g. a licensing/subscription product page, an internal request-access portal, or the nearest official documentation page) - live-verify that link too. This turns "no automated match found" into an actionable next step for a human instead of a dead end, and avoids the same manual research being repeated by whoever picks up the item next.
+
+### 10.3 Process Lessons From the Cloud-Lakehouse Refactor
+
+- **Interview first, then act.** Most costly mistakes here (deleting a local-only file, overwriting a production artifact, assuming local fallback was acceptable) were answerable by one question the AI never asked. Use Section 0 and record the answers.
+- **Official data usually classifies, but rarely labels status.** Check for a type field before inventing a heuristic; if there is no status field, define liveness explicitly and tell the user how it is derived and where it is blind (e.g. one-off calendar exceptions like public holidays).
+- **Dry run, then publish; publish via temp files; never keep a persistent local mirror of cloud data.**
+- **Back up before every overwrite, even when you "just regenerate".** Regeneration is not idempotent when the original build used different criteria; the backup is what made two silent regressions recoverable.
+- **Compare artifacts, not exit codes.** Exit code 0 published an empty manifest. Count tables, routes, keys and rows before and after.
+- **A passing test can be testing the wrong copy.** Make tests read what users read (the published artifact) and keep generators and assertions in sync.
+- **Say when something may be unrecoverable.** If a destructive step may have lost data (no versioning, gitignored, no backup), say it immediately and plainly instead of burying it.
+- **Keep identifiers composite.** Short names collide across operators; resolve and print agency + id.
 
 ## 11. Summary Checklist Before Any Git Push or Release
 
@@ -449,4 +644,13 @@ def test_manifest_and_proxy_synchronization():
 - [x] **Content-Type Sanity-Checked Against Body**: Plain-text/CSV endpoints validated by schema shape, not just header, to catch mislabelled bot-block pages.
 - [x] **Semantic/Subject-Matter Match Confirmed**: Every accepted match's real-world subject and jurisdiction verified to actually correspond to the target - live+real is not sufficient on its own.
 - [x] **Undocumented Coded Fields Empirically Verified**: Any inferred meaning of an undocumented code value confirmed against a known ground-truth example, not just its name.
-
+- [x] **Intake Interview Completed & Invariants Recorded**: platform, source of truth, environment, protected paths, consumers and acceptance examples captured in the agent-memory file (Section 0).
+- [x] **Type/Mode Derived From the Authoritative Field, Not Names**: no substring-based classification (Recipe 8).
+- [x] **Liveness Verified**: every displayed entity has current scheduled service / a status, and the rule is documented.
+- [x] **No Default Positive Status Text**: unknown data is labelled unknown.
+- [x] **Source-of-Truth Probe Passed**: run executed against the cloud store; no silent local fallback or path rewrite (Recipe 9).
+- [x] **Backup Taken Before Overwrite; Before/After Counts Compared; Non-Empty Assertions Present** (Recipe 10, Trap #26).
+- [x] **Published Artifact Re-inspected After Regeneration.**
+- [x] **Consumers Grepped and Cloud Superset Confirmed Before Deleting Any Data File; User Confirmed the Deletion.**
+- [x] **Tests Read the Published Artifact; No Orphan Assertions.**
+- [x] **Composite Identifiers Used**: agency + route id (or the dataset's true key); resolved entity printed.
