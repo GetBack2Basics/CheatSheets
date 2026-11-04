@@ -16,6 +16,7 @@ This repository contains practical Linux/networking/server setup notes and quick
 | `Mail_Server_RoundCube.md` | Postfix/Dovecot/Roundcube setup, verification, and troubleshooting checklist. | Normalized to consistent guide format. |
 | `cloudflare_tunnel_setup.md` | Cloudflare Tunnel setup with Docker run/compose examples and troubleshooting. | Normalized to consistent guide format. |
 | `Firebase-Auth-User-Administration-Complete-Setup-Guide.md` | Complete Firebase Auth + user administration lifecycle for Vite + React apps, including approval workflow and admin console operations. | Newly added and ready to use. |
+| `ai_plan_and_time_tracking_playbook.md` | Project-agnostic playbook for AI-driven development: intake interview, plan lifecycle, stakeholder review portal (edit-in-place, comments, sync, mobile design template), and time/cost tracking with revision ledger. | Newly added and ready to use. |
 
 ## New Guide Summary: Firebase Auth & User Administration
 
